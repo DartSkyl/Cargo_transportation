@@ -1,7 +1,10 @@
-from keyboards import main_customer, cancel_button, confirm_order, remove_order, confirm_order_remove
+from keyboards import (main_customer, cancel_button, confirm_order,
+                       remove_order, confirm_order_remove, confirm_delivery_yes_no)
 from utils.routers_for_roles import customer_router, all_role_router
 from utils.order_board import board_with_order
 from states.oreder_creating_states import OrderCreating
+from .all_roles import all_main_menu
+from loader import roles_dict, bot_base
 
 from aiogram.types import Message, CallbackQuery
 from aiogram import F, html
@@ -109,19 +112,87 @@ async def finish_order_creating(msg: Message, state: FSMContext):
             contacts=order_info["contacts"]
         )
         await msg.answer('Заказ опубликован!')
-        await cust_main_menu(msg=msg)
+
+        # В зависимости от роли, направим юзера в соответствующее главное меню
+        if msg.from_user.id in roles_dict['customer']:
+            await cust_main_menu(msg=msg)
+        else:
+            await all_main_menu(msg)
         await state.clear()
 
     elif msg.text == 'Отменить заказ':
-        await cust_main_menu(msg=msg)
+        if msg.from_user.id in roles_dict['customer']:
+            await cust_main_menu(msg=msg)
+        else:
+            await all_main_menu(msg)
         await state.clear()
 
 
 # ========== Просмотр созданных заказов и статистики ==========
 
+# Общая для ролей "заказчик" и "заказчик+исполнитель"
+@all_role_router.message(F.text == 'Мои созданные заказы')
 @customer_router.message(F.text == 'Мои заказы')
 async def view_customer_orders(msg: Message):
     """Заказчик получает список своих заказов"""
     customer_orders = await board_with_order.get_customer_orders(msg.from_user.id)
     for order in customer_orders:
-        await msg.answer(text=order.get_info_for_owner_and_executor(), reply_markup=remove_order)
+        order_status = order.get_order_status()  # Удалить заказ можно, только если его еще никто не взял
+        order_id = order.get_order_id()
+        await msg.answer(text=order.get_info_for_owner_and_executor(),
+                         reply_markup=remove_order(
+                             order_id=order_id, status=order_status
+                         ))
+
+
+@all_role_router.callback_query(F.data.startswith('rem_'))
+@customer_router.callback_query(F.data.startswith('rem_'))
+async def order_removing(callback: CallbackQuery, state: FSMContext):
+    """Запуск удаления заказа, а так же подтверждение или отмена удаления"""
+    if callback.data == 'rem_yes':
+        order_id = (await state.get_data())['order_id']
+        await board_with_order.remove_order(order_id)
+        await callback.message.delete()
+        await state.clear()
+
+    elif callback.data == 'rem_no':
+        order_id = (await state.get_data())['order_id']
+        order = await board_with_order.get_order_by_id(order_id)
+        order_status = order.get_order_status()  # Удалить заказ можно, только если его еще никто не взял
+
+        await callback.message.edit_text(text=order.get_info_for_owner_and_executor(),
+                                         reply_markup=remove_order(
+                                             order_id=order_id,
+                                             status=order_status
+                                         ))
+        await state.clear()
+
+    else:
+        await state.set_data({'order_id': callback.data.replace('rem_', '')})
+        await callback.message.edit_text(text='<b>Вы уверены</b>❓', reply_markup=confirm_order_remove)
+
+
+@all_role_router.callback_query(F.data.startswith('get_photo_'))
+@customer_router.callback_query(F.data.startswith('get_photo_'))
+async def get_photo_to_customer(callback: CallbackQuery):
+    """После того как исполнитель подтвердил получение груза фото, заказчик может это фото посмотреть в любой момент"""
+    await callback.answer()
+    await board_with_order.get_cargo_photo(callback.data.replace('get_photo_', ''))
+
+
+@all_role_router.callback_query(F.data.startswith('con_dev_'))
+@customer_router.callback_query(F.data.startswith('con_dev_'))
+async def confirm_cargo_delivery_from_customer(callback: CallbackQuery, state: FSMContext):
+    """Здесь заказчик подтверждает получение груза"""
+    if callback.data == 'con_dev_yes':
+        confirming_order_id = (await state.get_data())['confirming_order_id']
+        await board_with_order.close_order_successfully(confirming_order_id)
+        await callback.answer()
+        await callback.message.answer('Заказ успешно закрыт!')
+    elif callback.data == 'con_dev_no':
+        await callback.message.delete()
+    else:
+        await callback.answer()
+        await state.set_data({'confirming_order_id': callback.data.replace('con_dev_', '')})
+        await callback.message.answer(text='<b>Вы уверены</b>❓', reply_markup=confirm_delivery_yes_no)
+

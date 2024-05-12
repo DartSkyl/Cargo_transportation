@@ -1,1 +1,1 @@
-from . import registration, customer
+from . import registration, customer, all_roles

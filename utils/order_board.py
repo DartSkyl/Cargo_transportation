@@ -1,7 +1,8 @@
 from random import choices
 import string
 
-from loader import bot_base
+from loader import bot_base, roles_dict, bot
+from keyboards import confirm_delivery
 from .order_container import OrderContainer
 
 
@@ -47,6 +48,16 @@ class OrderBoard:
 
         self._order_list.append(order)
 
+        # После добавления заказа оповещаем всех исполнителей о новом заказе
+
+        for executor in roles_dict['executor']:
+            await bot.send_message(chat_id=executor, text='<b>Доступен новый заказ❗</b>')
+
+        for executor in roles_dict['all_roles']:
+            # Если заказчик является и исполнителем, то ему сообщение не отправляем
+            if executor != customer_id:
+                await bot.send_message(chat_id=executor, text='<b>Доступен новый заказ❗</b>')
+
     async def load_orders_from_base(self):
         """Выгружаем заказы из базы"""
         orders_from_base = await bot_base.load_orders_from_base()
@@ -60,7 +71,9 @@ class OrderBoard:
                 parcel_contents=elem[5],
                 time_delivery=elem[6],
                 price=elem[7],
-                contacts=elem[8]
+                contacts=elem[8],
+                status=elem[9] if elem[9] != 'None' else None,
+                cargo_photo=elem[10] if elem[9] != 'None' else None
             )
             self._order_list.append(order)
 
@@ -68,6 +81,116 @@ class OrderBoard:
         """Возвращает список заказов принадлежащих конкретному исполнителю"""
         customer_orders = [order for order in self._order_list if order.get_customer_id() == customer_id]
         return customer_orders
+
+    async def get_order_by_id(self, order_id):
+        """Возвращает объект заказа по ID"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                return order
+
+    async def get_available_orders(self, executor_id):
+        """Возвращает список доступных заказов, т.е. заказов со статусом None"""
+        available_orders = [order for order in self._order_list
+                            # Так же, исключим заказы, которые мог создать исполнитель из роли "заказчик+исполнитель"
+                            if not order.get_order_status() and order.get_customer_id() != executor_id]
+        return available_orders
+
+    async def get_orders_in_execute(self, executor_id):
+        """Возвращает список заказов взятых исполнителем"""
+        orders_in_execute = [order for order in self._order_list if order.get_executor_id() == executor_id]
+        return orders_in_execute
+
+    async def remove_order(self, order_id):
+        """Удаление заказа из доски и из базы через ID заказа"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                self._order_list.remove(order)
+                await bot_base.remove_order_from_base(order_id)
+                break
+
+    async def appoint_an_executor(self, order_id, executor_id):
+        """Метод назначает исполнителя заказу путем назначения executor_id
+        и изменением статуса заказа на take_a_parcel. Все одним методом. Так же, заносит изменения в базу.
+        Так же оповещает заказчика о взятии заказа в исполнение"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                order.set_executor(executor_id)
+                await bot_base.set_executor(order_id=order_id, executor_id=executor_id)
+                await bot.send_message(chat_id=order.get_customer_id(),
+                                       text=f'Ваш заказ <b>{order.get_parcel_contents()}</b> был взят в исполнение!\n'
+                                            f'Исполнитель свяжется с вами в ближайшее время!')
+                break
+
+    async def cancel_order_at_executor(self, order_id, executor_id):
+        """Исполнитель отменяет заказ взятый в работу. Ставим статус None, executor_id = 0 и сохраняем все в базу.
+        Попутно оповещаем заказчика об отказе со стороны исполнителя. Данная функция доступна только если
+        исполнитель еще не забрал груз"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                order.set_executor(0)
+                order.set_status(status=None)
+                await bot_base.cancel_execute_order(order_id=order_id)
+                await bot.send_message(chat_id=order.get_customer_id(),
+                                       text=f'Исполнитель отменил заказ <b>{order.get_parcel_contents()}!</b>\n'
+                                            f'Статус заказа изменен на <i>"Открытый"</i>')
+                break
+
+    async def executor_taken_cargo(self, cargo_photo, order_id):
+        """После того как исполнитель принял груз, он скидывает фото. Так же меняем статус заказа.
+        Все изменения заносим в базу и уведомляем заказчика"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                order.set_status(status='in_way')
+                order.set_cargo_photo(cargo_photo=cargo_photo)
+                await bot_base.executor_taken_cargo(order_id=order_id, cargo_phot=cargo_photo)
+                await bot.send_photo(
+                    chat_id=order.get_customer_id(),
+                    photo=cargo_photo,
+                    caption=f'Исполнитель принял груз <b>{order.get_parcel_contents()}</b>\n'
+                )
+                break
+
+    async def get_cargo_photo(self, order_id):
+        """Отправляет фото груза сделанное исполнителем заказчику перевозки"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                await bot.send_photo(
+                    chat_id=order.get_customer_id(),
+                    photo=order.get_cargo_phot(),
+                    caption=f'Груз <b>{order.get_parcel_contents()}</b>\n'
+                )
+                break
+
+    async def cargo_delivered(self, order_id):
+        """Сообщаем заказчику, что груз доставлен и ждем от него подтверждения"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                await bot.send_photo(
+                    chat_id=order.get_customer_id(),
+                    caption=f'Исполнитель доставил груз <b>{order.get_parcel_contents()}</b>\nПодтвердите получение:',
+                    photo=order.get_cargo_phot(),
+                    reply_markup=confirm_delivery(order_id)
+                )
+
+    async def close_order_successfully(self, order_id):
+        """Здесь происходит закрытие заказа, после того как заказчик подтвердил получение груза.
+        С последующим удалением из базы и занесением в статистику как исполнителя, так и заказчику"""
+        for order in self._order_list:
+            if order.get_order_id() == order_id:
+                await bot_base.close_order(
+                    order_id=order_id,
+                    customer_id=order.get_customer_id(),
+                    executor_id=order.get_executor_id()
+                )
+                await bot.send_message(
+                    chat_id=order.get_executor_id(),
+                    text='<i>Заказчик подтвердил получения груза!</i>'
+                )
+
+                # И удаляем из самой доски заказов
+
+                self._order_list.remove(order)
+                break
 
 
 board_with_order = OrderBoard()
