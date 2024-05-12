@@ -38,11 +38,23 @@ class OrderContainer:
                        f'Status: {self._status}')
         return self_string
 
+    def executor_canceled_order(self):
+        """Если исполнитель отменил заказ, то обнуляем executor_id и статус заказа"""
+        self._status = None
+        self._executor_id = 0
+
     def set_executor(self, executor_id):
         """Так как, этот метод вызывается только при взятии заказа исполнителем, то метод сразу
         устанавливает ID исполнителя и устанавливает статус заказа take_a_parcel"""
-        self._executor_id = executor_id
-        self._status = 'take_a_parcel'
+
+        # Сделаем проверку статуса, что бы избежать одновременного
+        # взятия одного заказа несколькими исполнителями
+
+        if not self._status:
+            self._executor_id = executor_id
+            self._status = 'take_a_parcel'
+        else:
+            raise ValueError('Заказчик уже назначен!')
 
     def set_status(self, status):
         """Устанавливаем новый статус заказа. Может принимать значения None, 'take_a_parcel' и 'in_way'"""
@@ -70,24 +82,24 @@ class OrderContainer:
             'take_a_parcel': 'На пути к пункту отгрузки',
             'in_way': 'В пути к пункту доставки'
         }
-        self_string = (f'<b>Пункт отгрузки:</b> {self._point_of_departure}\n'
-                       f'<b>Пункт доставки:</b> {self._point_of_delivery}\n'
-                       f'<b>Описание груза:</b> {self._parcel_contents}\n'
-                       f'<b>Время доставки:</b> {self._time_delivery}\n'
-                       f'<b>Вознаграждение:</b> {self._price}\n'
-                       f'<b>Контакты:</b> {self._contacts}\n'
-                       f'<b>Статус:</b> {status_dict[self._status]}')
+        self_string = (f'🚩 <b>Пункт отгрузки:</b> {self._point_of_departure}\n'
+                       f'🏁 <b>Пункт доставки:</b> {self._point_of_delivery}\n'
+                       f'📦 <b>Описание груза:</b> {self._parcel_contents}\n'
+                       f'⌚ <b>Время доставки:</b> {self._time_delivery}\n'
+                       f'💵 <b>Вознаграждение:</b> {self._price}\n'
+                       f'📞 <b>Контакты:</b> {self._contacts}\n'
+                       f'📨 <b>Статус:</b> {status_dict[self._status]}')
 
         return self_string
 
     def get_info_for_orders_board(self):
         """Возвращает строку с информацией по заказу для потенциальных исполнителей,
         без информации о статусе и контактах"""
-        self_string = (f'<b>Пункт отгрузки:</b> {self._point_of_departure}\n'
-                       f'<b>Пункт доставки:</b> {self._point_of_delivery}\n'
-                       f'<b>Описание груза:</b> {self._parcel_contents}\n'
-                       f'<b>Время доставки:</b> {self._time_delivery}\n'
-                       f'<b>Вознаграждение:</b> {self._price}\n')
+        self_string = (f'🚩 <b>Пункт отгрузки:</b> {self._point_of_departure}\n'
+                       f'🏁 <b>Пункт доставки:</b> {self._point_of_delivery}\n'
+                       f'📦 <b>Описание груза:</b> {self._parcel_contents}\n'
+                       f'⌚ <b>Время доставки:</b> {self._time_delivery}\n'
+                       f'💵 <b>Вознаграждение:</b> {self._price}\n')
 
         return self_string
 

@@ -32,6 +32,7 @@ async def greetings(msg: Message, state: FSMContext):
         await msg.answer(text=f'Рады видеть вас снова, <b>{html.quote(msg.from_user.first_name)}</b>!😉')
         # Открываем главное меню для каждой роли по словарю
         await roles[is_user[1]][1](msg=msg)
+        await state.clear()
 
 
 @dp.callback_query(Registration.role_choice, F.data.startswith('r_'))

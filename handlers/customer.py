@@ -20,8 +20,8 @@ async def cust_main_menu(msg: Message):
 # Данный функционал общий для ролей "заказчика" и "заказчик + исполнитель"
 
 
-@all_role_router.message(F.text == 'Создать заказ')
-@customer_router.message(F.text == 'Создать заказ')
+@all_role_router.message(F.text == '➕ Создать заказ')
+@customer_router.message(F.text == '➕ Создать заказ')
 async def order_creating(msg: Message, state: FSMContext):
     """Начало создания заказа через специализированный класс"""
     await msg.answer(text='Введите точный адрес, откуда исполнитель должен будет забрать:',
@@ -29,8 +29,8 @@ async def order_creating(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.departure)
 
 
-@all_role_router.message(OrderCreating.departure)
-@customer_router.message(OrderCreating.departure)
+@all_role_router.message(OrderCreating.departure, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.departure, F.text != '⛔ Отмена')
 async def catch_point_of_departure(msg: Message, state: FSMContext):
     """Ловим адрес точки отправки и предлагаем ввести точку доставки"""
     await state.set_data({'departure': msg.text})
@@ -38,8 +38,8 @@ async def catch_point_of_departure(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.delivery)
 
 
-@all_role_router.message(OrderCreating.delivery)
-@customer_router.message(OrderCreating.delivery)
+@all_role_router.message(OrderCreating.delivery, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.delivery, F.text != '⛔ Отмена')
 async def catch_point_of_delivery(msg: Message, state: FSMContext):
     """Ловим адрес доставки и предлагаем ввести содержимое груза"""
     await state.update_data({'delivery': msg.text})
@@ -47,8 +47,8 @@ async def catch_point_of_delivery(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.parcel_contents)
 
 
-@all_role_router.message(OrderCreating.parcel_contents)
-@customer_router.message(OrderCreating.parcel_contents)
+@all_role_router.message(OrderCreating.parcel_contents, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.parcel_contents, F.text != '⛔ Отмена')
 async def catch_parcel_contents(msg: Message, state: FSMContext):
     """Ловим содержимое груза и предлагаем ввести время доставки"""
     await state.update_data({'parcel_contents': msg.text})
@@ -57,8 +57,8 @@ async def catch_parcel_contents(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.time_to_delivery)
 
 
-@all_role_router.message(OrderCreating.time_to_delivery)
-@customer_router.message(OrderCreating.time_to_delivery)
+@all_role_router.message(OrderCreating.time_to_delivery, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.time_to_delivery, F.text != '⛔ Отмена')
 async def catch_time_to_delivery(msg: Message, state: FSMContext):
     """Ловим время доставки и предлагаем ввести цену за доставку"""
     await state.update_data({'time_to_delivery': msg.text})
@@ -66,8 +66,8 @@ async def catch_time_to_delivery(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.price)
 
 
-@all_role_router.message(OrderCreating.price)
-@customer_router.message(OrderCreating.price)
+@all_role_router.message(OrderCreating.price, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.price, F.text != '⛔ Отмена')
 async def catch_price(msg: Message, state: FSMContext):
     """Ловим цену за доставку и предлагаем ввести контакты"""
     await state.update_data({'price': msg.text})
@@ -76,8 +76,8 @@ async def catch_price(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.contacts)
 
 
-@all_role_router.message(OrderCreating.contacts)
-@customer_router.message(OrderCreating.contacts)
+@all_role_router.message(OrderCreating.contacts, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.contacts, F.text != '⛔ Отмена')
 async def catch_contacts_and_show_result(msg: Message, state: FSMContext):
     """Ловим контакты, показываем что в итоге получилось. Дальше заказчик либо все отменяет, либо подтверждает"""
 
@@ -96,11 +96,11 @@ async def catch_contacts_and_show_result(msg: Message, state: FSMContext):
     await state.set_state(OrderCreating.finish)
 
 
-@all_role_router.message(OrderCreating.finish)
-@customer_router.message(OrderCreating.finish)
+@all_role_router.message(OrderCreating.finish, F.text != '⛔ Отмена')
+@customer_router.message(OrderCreating.finish, F.text != '⛔ Отмена')
 async def finish_order_creating(msg: Message, state: FSMContext):
     """Здесь заказчик отправляет на доску заказов, либо отменяет"""
-    if msg.text == 'Опубликовать заказ':
+    if msg.text == '📨 Опубликовать заказ':
         order_info = await state.get_data()
         await board_with_order.add_order(
             customer_id=msg.from_user.id,
@@ -120,7 +120,7 @@ async def finish_order_creating(msg: Message, state: FSMContext):
             await all_main_menu(msg)
         await state.clear()
 
-    elif msg.text == 'Отменить заказ':
+    elif msg.text == '❌ Отменить заказ':
         if msg.from_user.id in roles_dict['customer']:
             await cust_main_menu(msg=msg)
         else:
@@ -131,18 +131,21 @@ async def finish_order_creating(msg: Message, state: FSMContext):
 # ========== Просмотр созданных заказов и статистики ==========
 
 # Общая для ролей "заказчик" и "заказчик+исполнитель"
-@all_role_router.message(F.text == 'Мои созданные заказы')
-@customer_router.message(F.text == 'Мои заказы')
+@all_role_router.message(F.text == '📦 Мои созданные заказы')
+@customer_router.message(F.text == '📦 Мои заказы')
 async def view_customer_orders(msg: Message):
     """Заказчик получает список своих заказов"""
     customer_orders = await board_with_order.get_customer_orders(msg.from_user.id)
-    for order in customer_orders:
-        order_status = order.get_order_status()  # Удалить заказ можно, только если его еще никто не взял
-        order_id = order.get_order_id()
-        await msg.answer(text=order.get_info_for_owner_and_executor(),
-                         reply_markup=remove_order(
-                             order_id=order_id, status=order_status
-                         ))
+    if len(customer_orders) > 0:
+        for order in customer_orders:
+            order_status = order.get_order_status()  # Удалить заказ можно, только если его еще никто не взял
+            order_id = order.get_order_id()
+            await msg.answer(text=order.get_info_for_owner_and_executor(),
+                             reply_markup=remove_order(
+                                 order_id=order_id, status=order_status
+                             ))
+    else:
+        await msg.answer('У вас нет активных заказов!')
 
 
 @all_role_router.callback_query(F.data.startswith('rem_'))
@@ -195,4 +198,15 @@ async def confirm_cargo_delivery_from_customer(callback: CallbackQuery, state: F
         await callback.answer()
         await state.set_data({'confirming_order_id': callback.data.replace('con_dev_', '')})
         await callback.message.answer(text='<b>Вы уверены</b>❓', reply_markup=confirm_delivery_yes_no)
+
+
+@all_role_router.message(F.text == '⛔ Отмена')
+@customer_router.message(F.text == '⛔ Отмена')
+async def cancel_crating_order(msg: Message, state: FSMContext):
+    """Отменяем создание заказа и не только"""
+    if msg.from_user.id in roles_dict['customer']:
+        await cust_main_menu(msg=msg)
+    else:
+        await all_main_menu(msg)
+    await state.clear()
 

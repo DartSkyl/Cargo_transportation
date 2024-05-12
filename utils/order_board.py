@@ -127,8 +127,7 @@ class OrderBoard:
         исполнитель еще не забрал груз"""
         for order in self._order_list:
             if order.get_order_id() == order_id:
-                order.set_executor(0)
-                order.set_status(status=None)
+                order.executor_canceled_order()
                 await bot_base.cancel_execute_order(order_id=order_id)
                 await bot.send_message(chat_id=order.get_customer_id(),
                                        text=f'Исполнитель отменил заказ <b>{order.get_parcel_contents()}!</b>\n'
