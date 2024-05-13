@@ -17,7 +17,8 @@ class BotBase:
                            'order_created INTEGER DEFAULT 0,'
                            'order_closed INTEGER DEFAULT 0,'
                            'full_name TEXT,'
-                           'username TEXT'
+                           'username TEXT,'
+                           'email TEXT'
                            ');')
 
             # Таблица с заказами. Хранит ID самого заказа, ID создателя и ID исполнителя.
@@ -140,12 +141,12 @@ class BotBase:
             return users_list
 
     @staticmethod
-    async def registration_new_user(user_id: int, role: str, full_name: str, username: str):
+    async def registration_new_user(user_id: int, role: str, full_name: str, username: str, email: str):
         """Регистрируем нового пользователя. Передаем его ID и выбранную им роль"""
         with sqlite3.connect('database.db') as connection:
             cursor = connection.cursor()
-            cursor.execute(f'INSERT INTO Users (user_id, user_role, full_name, username) '
-                           f'VALUES ({user_id}, "{role}", "{full_name}", "{username}");')
+            cursor.execute(f'INSERT INTO Users (user_id, user_role, full_name, username, email) '
+                           f'VALUES ({user_id}, "{role}", "{full_name}", "{username}", "{email}");')
             connection.commit()
 
     @staticmethod

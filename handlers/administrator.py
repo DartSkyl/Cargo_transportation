@@ -1,16 +1,16 @@
-from loader import dp, bot_base, roles_dict, bot, blacklist
+import csv
+from loader import bot_base, roles_dict, blacklist
 from keyboards import admin_main_menu
 from utils.admin_router import admin_router
-from utils.order_board import board_with_order
 from states import UserManipulation
 
-from aiogram.types import Message, FSInputFile, CallbackQuery
-from aiogram import F, html
+from aiogram.types import Message, FSInputFile
+from aiogram import F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 
-@admin_router.message(Command('admin_panel'))
+@admin_router.message(Command('admin'))
 async def open_admin_menu(msg: Message):
     """Открывает меню администратора"""
     await msg.answer(text='Открыта панель администратора:', reply_markup=admin_main_menu)
@@ -19,18 +19,17 @@ async def open_admin_menu(msg: Message):
 @admin_router.message(F.text == '🔎 Посмотреть всех пользователей')
 async def get_all_users(msg: Message):
     """Выводит список всех зарегистрированных юзеров"""
-    roles = {
-        'executor': 'Исполнитель',
-        'customer': 'Заказчик',
-        'all_roles': 'Исполнитель + Заказчик'
-    }
     all_user = await bot_base.load_user_from_base()
-    msg_text = 'Список всех пользователей:\n\n'
-    for user in all_user:
-        msg_text += (f'<b>ID:</b> {user[0]}\n<b>Имя:</b> {user[4]}\n'
-                     f'<b>Юзернэйм:</b> {"@" + user[5] if user[5] != "None" else "<i>Отсутствует</i>"}\n'
-                     f'<b>Роль:</b> {roles[user[1]]}\n\n')
-    await msg.answer(msg_text)
+
+    table_header = ('ID пользователя', 'Роль', 'Заказов открыто', 'Заказов закрыто', 'Имя пользователя', 'Юзернэйм', 'Почта')
+
+    all_user.insert(0, table_header)  # Вставим шапку таблицы
+
+    with open('users_list.csv', 'w', newline='') as file:
+        csv.writer(file).writerows(all_user)
+
+    users = FSInputFile('users_list.csv')
+    await msg.answer_document(document=users)
 
 
 @admin_router.message(F.text == '🤐 Забанить пользователя')

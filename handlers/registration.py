@@ -1,4 +1,6 @@
-from loader import dp, bot_base, roles_dict, blacklist
+from smtplib import SMTPRecipientsRefused, SMTPSenderRefused
+
+from loader import dp, bot_base, roles_dict, blacklist, email_sendler
 from keyboards import role_choice, confirm_choice
 from states import Registration
 from .customer import cust_main_menu
@@ -53,19 +55,59 @@ async def confirm_user_choice(callback: CallbackQuery, state: FSMContext):
     """Здесь пользователь подтверждает свой выбор, либо нет"""
     await callback.answer()
     if callback.data == 'confirm':
-        user_role = (await state.get_data())['user_role']  # Достаем заранее сохраненный выбор пользователя
-        await bot_base.registration_new_user(
-            user_id=callback.from_user.id,
-            role=user_role,
-            full_name=callback.from_user.full_name,
-            username=callback.from_user.username
-        )
-        # Добавляем в словарь по ключу выбранной роли
-        roles_dict[user_role].append(callback.from_user.id)
-        await callback.message.answer(text='Вы зарегистрированы!')
-        # Открываем главное меню для каждой роли по словарю
-        await roles[user_role][1](msg=callback.message)
-        await state.clear()
+        # user_role = (await state.get_data())['user_role']  # Достаем заранее сохраненный выбор пользователя
+        # await bot_base.registration_new_user(
+        #     user_id=callback.from_user.id,
+        #     role=user_role,
+        #     full_name=callback.from_user.full_name,
+        #     username=callback.from_user.username
+        # )
+        # # Добавляем в словарь по ключу выбранной роли
+        # roles_dict[user_role].append(callback.from_user.id)
+        # await callback.message.answer(text='Вы зарегистрированы!')
+        # # Открываем главное меню для каждой роли по словарю
+        # await roles[user_role][1](msg=callback.message)
+        # await state.clear()
+        await callback.message.answer('Теперь введите свой e-mail адрес для верификации:')
+        await state.set_state(Registration.send_email_code)
     else:
         await callback.message.answer(text='Выберете свою роль:', reply_markup=role_choice)
         await state.set_state(Registration.role_choice)
+
+
+@dp.message(Registration.send_email_code)
+async def send_verification_code(msg: Message, state: FSMContext):
+    """Ловим почту пользователя и отправляем туда код подтверждения"""
+    try:
+        code = await email_sendler.send_verification_code(user_email=msg.text)
+        await msg.answer(text='Проверьте почту (в том числе и папку "спам") и введите код подтверждения:')
+        await state.update_data({'verification_code': code, 'user_email': msg.text})
+        await state.set_state(Registration.input_email_code)
+    except SMTPRecipientsRefused:
+        await msg.answer('Такого e-mail адреса не существует! Повторите попытку:')
+    except UnicodeEncodeError:
+        await msg.answer('Такого e-mail адреса не существует! Повторите попытку:')
+    except SMTPSenderRefused:
+        await msg.answer('Подождите немного и повторите попытку:')
+
+
+@dp.message(Registration.input_email_code)
+async def catch_verification_code(msg: Message, state: FSMContext):
+    """Ловим введенный пользователем код проверяем его"""
+    user_info = await state.get_data()
+    if msg.text == user_info['verification_code']:
+        await bot_base.registration_new_user(
+            user_id=msg.from_user.id,
+            role=user_info['user_role'],
+            full_name=msg.from_user.full_name,
+            username=msg.from_user.username,
+            email=user_info['user_email']
+        )
+        # Добавляем в словарь по ключу выбранной роли
+        roles_dict[user_info['user_role']].append(msg.from_user.id)
+        await msg.answer(text='Вы зарегистрированы!')
+        # Открываем главное меню для каждой роли по словарю
+        await roles[user_info['user_role']][1](msg=msg)
+        await state.clear()
+    else:
+        await msg.answer('Неверный код подтверждения!')

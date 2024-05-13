@@ -2,3 +2,4 @@
 *.log
 *.db
 /venv
+/test.py
