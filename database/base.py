@@ -15,7 +15,9 @@ class BotBase:
                            'user_id INTEGER PRIMARY KEY,'
                            'user_role TEXT NOT NULL,'
                            'order_created INTEGER DEFAULT 0,'
-                           'order_closed INTEGER DEFAULT 0'
+                           'order_closed INTEGER DEFAULT 0,'
+                           'full_name TEXT,'
+                           'username TEXT'
                            ');')
 
             # Таблица с заказами. Хранит ID самого заказа, ID создателя и ID исполнителя.
@@ -138,11 +140,12 @@ class BotBase:
             return users_list
 
     @staticmethod
-    async def registration_new_user(user_id: int, role: str):
+    async def registration_new_user(user_id: int, role: str, full_name: str, username: str):
         """Регистрируем нового пользователя. Передаем его ID и выбранную им роль"""
         with sqlite3.connect('database.db') as connection:
             cursor = connection.cursor()
-            cursor.execute(f'INSERT INTO Users (user_id, user_role) VALUES ({user_id}, "{role}");')
+            cursor.execute(f'INSERT INTO Users (user_id, user_role, full_name, username) '
+                           f'VALUES ({user_id}, "{role}", "{full_name}", "{username}");')
             connection.commit()
 
     @staticmethod
@@ -161,3 +164,12 @@ class BotBase:
             result = cursor.execute(f'SELECT order_created, order_closed'
                                     f' FROM Users WHERE user_id = {user_id};').fetchone()
             return result
+
+    @staticmethod
+    async def delete_user(user_id: int):
+        """Удаляем пользователя из базы и все его заказы"""
+        with sqlite3.connect('database.db') as connection:
+            cursor = connection.cursor()
+            cursor.execute(f'DELETE FROM Users WHERE user_id = {user_id}')
+            cursor.execute(f'DELETE FROM Orders WHERE customer_id = {user_id}')
+            connection.commit()

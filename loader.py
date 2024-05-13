@@ -19,6 +19,9 @@ roles_dict = {
     'all_roles': []
 }
 
+# Черный список содержит тех, кого забанили
+blacklist = []
+
 
 async def base_load():
     """Загружаем базу данных"""

@@ -5,6 +5,7 @@ from .reply.customer_rk import main_customer, confirm_order
 from .reply.executor_rk import main_executor, confirm_cargo_photo
 from .reply.all_roles_rk import main_all_roles
 from .reply.for_all import cancel_button
+from .reply.admin_rk import admin_main_menu
 
 
 __all__ = (
@@ -33,5 +34,8 @@ __all__ = (
     'main_all_roles',
 
     # Общие для всех
-    'cancel_button'
+    'cancel_button',
+
+    # Администратор
+    'admin_main_menu'
 )
