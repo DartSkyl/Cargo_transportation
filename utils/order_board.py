@@ -22,7 +22,10 @@ class OrderBoard:
         """Добавляем заказ на общую доску и сохраняем в базу"""
 
         order_id = ''.join(choices(string.digits + string.ascii_letters, k=8))
-        order_number = int(await bot_base.get_number_of_last_order()) + 1
+        try:
+            order_number = int(await bot_base.get_number_of_last_order()) + 1
+        except TypeError:
+            order_number = 1
 
         order = OrderContainer(
             order_num=order_number,
