@@ -10,7 +10,11 @@ from aiogram.types.bot_command import BotCommand
 
 async def start_up():
     await bot.set_my_commands(
-        commands=[BotCommand(command='start', description='Главное меню или рестарт')]
+        commands=[
+            BotCommand(command='start', description='Главное меню или рестарт'),
+            BotCommand(command='chat', description='Ссылка на тематический чат'),
+            BotCommand(command='tech_podderzhka', description='Тех. поддержка')
+        ]
     )
 
     # Для администраторов и всех ролей индивидуальный роутер

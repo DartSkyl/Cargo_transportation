@@ -18,13 +18,15 @@ class BotBase:
                            'order_closed INTEGER DEFAULT 0,'
                            'full_name TEXT,'
                            'username TEXT,'
-                           'email TEXT'
+                           'email TEXT,'
+                           'representative TEXT'
                            ');')
 
             # Таблица с заказами. Хранит ID самого заказа, ID создателя и ID исполнителя.
             # Если ID исполнителя нет, значит заказ еще не взят в работу
             cursor.execute('CREATE TABLE IF NOT EXISTS Orders ('
-                           'order_id TEXT PRIMARY KEY,'
+                           'order_num INTEGER PRIMARY KEY AUTOINCREMENT,'
+                           'order_id TEXT,'
                            'customer_id INTEGER NOT NULL,'
                            'executor_id INTEGER DEFAULT 0,'
                            'point_of_departure TEXT,'
@@ -76,6 +78,17 @@ class BotBase:
             cursor.execute(f'UPDATE Users SET order_created = Users.order_created + 1 WHERE user_id = {customer_id}')
             connection.commit()
 
+    # ========== Методы взаимодействия с заказами ==========
+
+    @staticmethod
+    async def get_number_of_last_order():
+        """Получаем номер последнего заказа, нужно для присвоения новому заказу порядкового номера"""
+        with sqlite3.connect('database.db') as connection:
+            cursor = connection.cursor()
+            last_number = cursor.execute('SELECT Max(order_num) FROM Orders').fetchone()
+            # Возвращается кортеж с одним значением, по этому сделаем так:
+            return last_number[0]
+
     @staticmethod
     async def load_orders_from_base():
         """Выгружаем заказы из базы"""
@@ -125,9 +138,47 @@ class BotBase:
         """Удаляем заказ из базы и помечаем в статистику заказчику и исполнителю"""
         with sqlite3.connect('database.db') as connection:
             cursor = connection.cursor()
-            cursor.execute(f'DELETE FROM Orders WHERE order_id = "{order_id}"')
+            cursor.execute(f'UPDATE Orders SET status = "close" WHERE order_id = "{order_id}"')
             cursor.execute(f'UPDATE Users SET order_closed = Users.order_closed + 1 WHERE user_id = {executor_id}')
             cursor.execute(f'UPDATE Users SET order_closed = Users.order_closed + 1 WHERE user_id = {customer_id}')
+            connection.commit()
+
+    @staticmethod
+    async def get_customer_orders_history(customer_id: int):
+        """Возвращаем историю созданных заказов заказчиком"""
+        with sqlite3.connect('database.db') as connection:
+            cursor = connection.cursor()
+            orders_history_list = cursor.execute(f'SELECT * FROM Orders '
+                                                 f'WHERE customer_id = {customer_id} AND status = "close"').fetchall()
+            return orders_history_list
+
+    @staticmethod
+    async def get_executor_orders_history(executor_id: int):
+        """Возвращаем историю заказов выполненных исполнителем"""
+        with sqlite3.connect('database.db') as connection:
+            cursor = connection.cursor()
+            orders_history_list = cursor.execute(f'SELECT * FROM Orders '
+                                                 f'WHERE executor_id = {executor_id} AND status = "close"').fetchall()
+            return orders_history_list
+
+    @staticmethod
+    async def get_orders_history():
+        """Возвращаем историю всех зарытых заказов для администратора"""
+        with sqlite3.connect('database.db') as connection:
+            cursor = connection.cursor()
+            orders_history_list = cursor.execute(f'SELECT * FROM Orders '
+                                                 f'WHERE status = "close"').fetchall()
+            return orders_history_list
+
+    # ========== Методы редактирования заказов ==========
+
+    @staticmethod
+    def edit_order_info(order_id: str, edit_column: str, variable: str):
+        """Меняем колонку заказа по передаваемому значению. Передаем колонку и значение"""
+        with sqlite3.connect('database.db') as connection:
+            cursor = connection.cursor()
+            cursor.execute(f'UPDATE Orders SET {edit_column} = "{variable}"'
+                           f'WHERE order_id = "{order_id}"')
             connection.commit()
 
     # ========== Методы взаимодействия с юзерами ==========
@@ -141,12 +192,13 @@ class BotBase:
             return users_list
 
     @staticmethod
-    async def registration_new_user(user_id: int, role: str, full_name: str, username: str, email: str):
+    async def registration_new_user(user_id: int, role: str, full_name: str, username: str, email: str,
+                                    representative: str):
         """Регистрируем нового пользователя. Передаем его ID и выбранную им роль"""
         with sqlite3.connect('database.db') as connection:
             cursor = connection.cursor()
-            cursor.execute(f'INSERT INTO Users (user_id, user_role, full_name, username, email) '
-                           f'VALUES ({user_id}, "{role}", "{full_name}", "{username}", "{email}");')
+            cursor.execute(f'INSERT INTO Users (user_id, user_role, full_name, username, email, representative) '
+                           f'VALUES ({user_id}, "{role}", "{full_name}", "{username}", "{email}", "{representative}");')
             connection.commit()
 
     @staticmethod

@@ -7,3 +7,4 @@ class Registration(StatesGroup):
     confirm_choice = State()
     send_email_code = State()
     input_email_code = State()
+    input_firm = State()

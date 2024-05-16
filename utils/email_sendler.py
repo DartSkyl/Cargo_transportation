@@ -1,4 +1,5 @@
 import smtplib
+from smtplib import SMTPServerDisconnected
 from random import choices
 import string
 from email.mime.multipart import MIMEMultipart
@@ -32,7 +33,13 @@ class MailSendler:
         msg_text = f'Ваш код подтверждения для регистрации {verification_code}'
 
         msg.attach(MIMEText(msg_text, "plain"))
-        self._smtp_server.sendmail(from_addr=self._bot_email, to_addrs=user_email, msg=msg.as_string())
+        try:
+            self._smtp_server.sendmail(from_addr=self._bot_email, to_addrs=user_email, msg=msg.as_string())
+        except SMTPServerDisconnected:
+            self._smtp_server.connect("smtp.yandex.ru", 587)
+            self._smtp_server.starttls()
+            self._smtp_server.login(user=self._bot_email, password=self._bot_email_password)
+            self._smtp_server.sendmail(from_addr=self._bot_email, to_addrs=user_email, msg=msg.as_string())
         # Так же вернем код, что бы можно было свериться с тем, что введет пользователь
         return verification_code
 

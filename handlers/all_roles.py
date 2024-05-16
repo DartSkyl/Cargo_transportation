@@ -2,6 +2,7 @@ from loader import dp, bot_base
 from keyboards import main_all_roles
 
 from aiogram.types import Message
+from aiogram.filters import Command
 from aiogram import F
 
 
@@ -23,3 +24,15 @@ async def get_user_stat(msg: Message):
         await msg.answer(stat_msg)
     except TypeError:  # Если пользователя уже нет в базе
         pass
+
+
+@dp.message(Command('tech_podderzhka'))
+async def get_admin_contact(msg: Message):
+    """Отправляем в чат контакт админа"""
+    await msg.answer('По всем вопросам пишите сюда @kurull1210')
+
+
+@dp.message(Command('chat'))
+async def get_chat_link(msg: Message):
+    """Отправляем ссылку с чатом"""
+    await msg.answer('Тематический чат ➡️ <b><a href="https://t.me/poputiwb">здесь</a>!</b>')

@@ -12,8 +12,6 @@ bot_base = BotBase()
 email_sendler = MailSendler(bot_email=BOT_EMAIL, bot_email_password=BOT_EMAIL_PASSWORD)
 
 
-
-
 # Система ролей в боте будет реализована через словарь с тремя ключами.
 # Каждый ключ это название роли, который содержит список id юзеров
 # принадлежащих к той или иной роли

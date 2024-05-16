@@ -1,7 +1,7 @@
 from smtplib import SMTPRecipientsRefused, SMTPSenderRefused
 
 from loader import dp, bot_base, roles_dict, blacklist, email_sendler
-from keyboards import role_choice, confirm_choice
+from keyboards import role_choice, confirm_choice, fith_or_representative, confirm_firm
 from states import Registration
 from .customer import cust_main_menu
 from .all_roles import all_main_menu
@@ -52,27 +52,46 @@ async def catch_user_role(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Registration.confirm_choice)
 async def confirm_user_choice(callback: CallbackQuery, state: FSMContext):
-    """Здесь пользователь подтверждает свой выбор, либо нет"""
+    """Здесь пользователь подтверждает свой выбор, либо нет. И если он исполнитель или заказчик+исполнитель,
+    то должен обозначить себя либо как физ. лицо, либо как представитель фирмы"""
     await callback.answer()
     if callback.data == 'confirm':
-        # user_role = (await state.get_data())['user_role']  # Достаем заранее сохраненный выбор пользователя
-        # await bot_base.registration_new_user(
-        #     user_id=callback.from_user.id,
-        #     role=user_role,
-        #     full_name=callback.from_user.full_name,
-        #     username=callback.from_user.username
-        # )
-        # # Добавляем в словарь по ключу выбранной роли
-        # roles_dict[user_role].append(callback.from_user.id)
-        # await callback.message.answer(text='Вы зарегистрированы!')
-        # # Открываем главное меню для каждой роли по словарю
-        # await roles[user_role][1](msg=callback.message)
-        # await state.clear()
-        await callback.message.answer('Теперь введите свой e-mail адрес для верификации:')
-        await state.set_state(Registration.send_email_code)
-    else:
+        if (await state.get_data())['user_role'] in ('executor', 'all_roles'):
+            await callback.message.answer(text='Вы являетесь физическим лицом или представителем фирмы?',
+                                          reply_markup=fith_or_representative)
+        else:
+            await state.update_data({'pometka': 'None'})
+            await callback.message.answer('Теперь введите свой e-mail адрес для верификации:')
+            await state.set_state(Registration.send_email_code)
+    elif callback.data == 'unconfirmed':
         await callback.message.answer(text='Выберете свою роль:', reply_markup=role_choice)
         await state.set_state(Registration.role_choice)
+    elif callback.data == 'pom_fith':
+        await state.update_data({'pometka': 'физическое лицо'})
+        await callback.message.answer('Теперь введите свой e-mail адрес для верификации:')
+        await state.set_state(Registration.send_email_code)
+    elif callback.data == 'pom_repr':
+        await state.set_state(Registration.input_firm)
+        await callback.message.answer('Введите название вашей фирмы:')
+
+
+@dp.message(Registration.input_firm)
+async def catch_user_firm(msg: Message, state: FSMContext):
+    """Ловим фирму пользователя"""
+    await state.update_data({'pometka': msg.text})
+    await msg.answer(text=f'Вы являетесь представителем фирмы <b>{msg.text}</b>, верно?',
+                     reply_markup=confirm_firm)
+
+
+@dp.callback_query(Registration.input_firm)
+async def confirm_user_firm(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение фирмы пользователя"""
+    if callback.data == 'yes':
+        await callback.message.answer('Теперь введите свой e-mail адрес для верификации:')
+        await state.set_state(Registration.send_email_code)
+    elif callback.data == 'no':
+        await callback.answer()
+        await callback.message.answer('Введите название вашей фирмы:')
 
 
 @dp.message(Registration.send_email_code)
@@ -101,11 +120,14 @@ async def catch_verification_code(msg: Message, state: FSMContext):
             role=user_info['user_role'],
             full_name=msg.from_user.full_name,
             username=msg.from_user.username,
-            email=user_info['user_email']
+            email=user_info['user_email'],
+            representative=user_info['pometka']
         )
         # Добавляем в словарь по ключу выбранной роли
         roles_dict[user_info['user_role']].append(msg.from_user.id)
-        await msg.answer(text='Вы зарегистрированы!')
+        await msg.answer('Вы зарегистрированы!\nЕще мы будем рады видеть вас в нашем тематическом '
+                         '<b><a href="https://t.me/poputiwb">чате</a></b>!😉\n'
+                         'Так же ссылка всегда доступна в меню бота!')
         # Открываем главное меню для каждой роли по словарю
         await roles[user_info['user_role']][1](msg=msg)
         await state.clear()

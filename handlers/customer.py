@@ -1,7 +1,8 @@
-from keyboards import (main_customer, cancel_button, confirm_order,
+from keyboards import (main_customer, cancel_button, make_order, get_photo_history, history_choice,
                        remove_order, confirm_order_remove, confirm_delivery_yes_no)
 from utils.routers_for_roles import customer_router, all_role_router
 from utils.order_board import board_with_order
+from utils.order_container import OrderContainer
 from states.oreder_creating_states import OrderCreating
 from .all_roles import all_main_menu
 from loader import roles_dict, bot_base
@@ -52,8 +53,7 @@ async def catch_point_of_delivery(msg: Message, state: FSMContext):
 async def catch_parcel_contents(msg: Message, state: FSMContext):
     """Ловим содержимое груза и предлагаем ввести время доставки"""
     await state.update_data({'parcel_contents': msg.text})
-    await msg.answer('Укажите время и число к которому нужно доставить груз.\n'
-                     'Или диапазон времени (например с 12 до 16):')
+    await msg.answer('Укажите диапазон времени, когда нужно забрать и доставить груз:')
     await state.set_state(OrderCreating.time_to_delivery)
 
 
@@ -62,7 +62,7 @@ async def catch_parcel_contents(msg: Message, state: FSMContext):
 async def catch_time_to_delivery(msg: Message, state: FSMContext):
     """Ловим время доставки и предлагаем ввести цену за доставку"""
     await state.update_data({'time_to_delivery': msg.text})
-    await msg.answer('Укажите размер вознаграждения, которе получит доставщик:')
+    await msg.answer('Укажите размер вознаграждения в рублях, которе получит доставщик:')
     await state.set_state(OrderCreating.price)
 
 
@@ -92,18 +92,19 @@ async def catch_contacts_and_show_result(msg: Message, state: FSMContext):
                 f'<b>Вознаграждение за доставку:</b> {order_info["price"]}\n'
                 f'<b>Контакты для связи:</b> {order_info["contacts"]}')
 
-    await msg.answer(text=msg_text, reply_markup=confirm_order)
+    await msg.answer(text=msg_text, reply_markup=make_order)
     await state.set_state(OrderCreating.finish)
 
 
-@all_role_router.message(OrderCreating.finish, F.text != '⛔ Отмена')
-@customer_router.message(OrderCreating.finish, F.text != '⛔ Отмена')
-async def finish_order_creating(msg: Message, state: FSMContext):
+@all_role_router.callback_query(OrderCreating.finish, F.data.startswith('or_'))
+@customer_router.callback_query(OrderCreating.finish, F.data.startswith('or_'))
+async def finish_order_creating(callback: CallbackQuery, state: FSMContext):
     """Здесь заказчик отправляет на доску заказов, либо отменяет"""
-    if msg.text == '📨 Опубликовать заказ':
+    await callback.answer()
+    if callback.data == 'or_confirm':
         order_info = await state.get_data()
         await board_with_order.add_order(
-            customer_id=msg.from_user.id,
+            customer_id=callback.from_user.id,
             point_of_departure=order_info["departure"],
             point_of_delivery=order_info["delivery"],
             parcel_contents=order_info["parcel_contents"],
@@ -111,20 +112,20 @@ async def finish_order_creating(msg: Message, state: FSMContext):
             price=order_info["price"],
             contacts=order_info["contacts"]
         )
-        await msg.answer('Заказ опубликован!')
+        await callback.message.answer('Заказ опубликован!')
 
         # В зависимости от роли, направим юзера в соответствующее главное меню
-        if msg.from_user.id in roles_dict['customer']:
-            await cust_main_menu(msg=msg)
+        if callback.from_user.id in roles_dict['customer']:
+            await cust_main_menu(msg=callback.message)
         else:
-            await all_main_menu(msg)
+            await all_main_menu(callback.message)
         await state.clear()
 
-    elif msg.text == '❌ Отменить заказ':
-        if msg.from_user.id in roles_dict['customer']:
-            await cust_main_menu(msg=msg)
+    elif callback.data == 'or_unconfirmed':
+        if callback.from_user.id in roles_dict['customer']:
+            await cust_main_menu(msg=callback.message)
         else:
-            await all_main_menu(msg)
+            await all_main_menu(callback.message)
         await state.clear()
 
 
@@ -200,6 +201,54 @@ async def confirm_cargo_delivery_from_customer(callback: CallbackQuery, state: F
         await callback.message.answer(text='<b>Вы уверены</b>❓', reply_markup=confirm_delivery_yes_no)
 
 
+@all_role_router.message(F.text == '📂 История заказов')
+async def choice_history(msg: Message):
+    """У двойной роли две истории"""
+    await msg.answer(text='Какую историю показать?', reply_markup=history_choice)
+
+
+@all_role_router.message(F.text == '📦 История открытых заказов')
+@customer_router.message(F.text == '📂 История заказов')
+async def view_orders_history(msg: Message, state: FSMContext):
+    """Отправляем заказчику все его закрытые заказы"""
+    await state.set_data({'': ''})  # Заглушка, что бы задать data
+    orders_history_list = await bot_base.get_customer_orders_history(msg.from_user.id)
+    if len(orders_history_list) > 0:
+        for elem in orders_history_list:
+            close_order = OrderContainer(
+                order_num=elem[0],
+                container_id=elem[1],
+                customer_id=elem[2],
+                executor_id=elem[3],
+                point_of_departure=elem[4],
+                point_of_delivery=elem[5],
+                parcel_contents=elem[6],
+                time_delivery=elem[7],
+                price=elem[8],
+                contacts=elem[9],
+                status=elem[10],
+                cargo_photo=elem[11]
+            )
+            await state.update_data({elem[1]: (elem[11], elem[6])})
+            await msg.answer(text=close_order.get_info_for_owner_and_executor(), reply_markup=get_photo_history(elem[1]))
+    else:
+        await msg.answer('Ваша история пуста!')
+    if msg.from_user.id in roles_dict['all_roles']:
+        await all_main_menu(msg)
+
+
+@all_role_router.callback_query(F.data.startswith('history_photo_'))
+@customer_router.callback_query(F.data.startswith('history_photo_'))
+async def get_history_photo(callback: CallbackQuery, state: FSMContext):
+    """Отправляем фото из закрытого заказа"""
+    await callback.answer()
+    photo = (await state.get_data())[callback.data.replace('history_photo_', '')]
+    await callback.message.answer_photo(
+        photo=photo[0],
+        caption=f'Фото заказа <b><i>{photo[1]}</i></b>'
+    )
+
+
 @all_role_router.message(F.text == '⛔ Отмена')
 @customer_router.message(F.text == '⛔ Отмена')
 async def cancel_crating_order(msg: Message, state: FSMContext):
@@ -209,4 +258,3 @@ async def cancel_crating_order(msg: Message, state: FSMContext):
     else:
         await all_main_menu(msg)
     await state.clear()
-

@@ -22,8 +22,10 @@ class OrderBoard:
         """Добавляем заказ на общую доску и сохраняем в базу"""
 
         order_id = ''.join(choices(string.digits + string.ascii_letters, k=8))
+        order_number = int(await bot_base.get_number_of_last_order()) + 1
 
         order = OrderContainer(
+            order_num=order_number,
             container_id=order_id,
             customer_id=customer_id,
             point_of_departure=point_of_departure,
@@ -62,20 +64,22 @@ class OrderBoard:
         """Выгружаем заказы из базы"""
         orders_from_base = await bot_base.load_orders_from_base()
         for elem in orders_from_base:
-            order = OrderContainer(
-                container_id=elem[0],
-                customer_id=elem[1],
-                executor_id=elem[2],
-                point_of_departure=elem[3],
-                point_of_delivery=elem[4],
-                parcel_contents=elem[5],
-                time_delivery=elem[6],
-                price=elem[7],
-                contacts=elem[8],
-                status=elem[9] if elem[9] != 'None' else None,
-                cargo_photo=elem[10] if elem[9] != 'None' else None
-            )
-            self._order_list.append(order)
+            if elem[10] != 'close':
+                order = OrderContainer(
+                    order_num=elem[0],
+                    container_id=elem[1],
+                    customer_id=elem[2],
+                    executor_id=elem[3],
+                    point_of_departure=elem[4],
+                    point_of_delivery=elem[5],
+                    parcel_contents=elem[6],
+                    time_delivery=elem[7],
+                    price=elem[8],
+                    contacts=elem[9],
+                    status=elem[10] if elem[10] != 'None' else None,
+                    cargo_photo=elem[11] if elem[11] != 'None' else None
+                )
+                self._order_list.append(order)
 
     async def get_customer_orders(self, customer_id):
         """Возвращает список заказов принадлежащих конкретному исполнителю"""
@@ -190,6 +194,10 @@ class OrderBoard:
 
                 self._order_list.remove(order)
                 break
+
+    async def get_all_orders(self):
+        """Возвращает список всех заказов для администратора"""
+        return self._order_list
 
 
 board_with_order = OrderBoard()

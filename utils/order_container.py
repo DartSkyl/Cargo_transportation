@@ -1,6 +1,10 @@
+from loader import bot_base
+
+
 class OrderContainer:
     """Через дынный класс будет реализован объект заказа"""
     def __init__(self,
+                 order_num: int,
                  container_id: str,
                  customer_id: int,
                  point_of_departure: str,
@@ -13,6 +17,7 @@ class OrderContainer:
                  executor_id=0,
                  cargo_photo=None):
 
+        self._order_num = order_num
         self._container_id = container_id
         self._customer_id = customer_id
         self._executor_id = executor_id
@@ -26,7 +31,8 @@ class OrderContainer:
         self._cargo_photo = cargo_photo
 
     def __str__(self):
-        self_string = (f'\nID: {self._container_id}\n'
+        self_string = (f'\nNumber: {self._order_num}\n'
+                       f'ID: {self._container_id}\n'
                        f'Customer ID: {self._customer_id}\n'
                        f'Executor ID: {self._executor_id}\n'
                        f'Departure: {self._point_of_departure}\n'
@@ -80,9 +86,11 @@ class OrderContainer:
         status_dict = {
             None: 'Открыт',
             'take_a_parcel': 'На пути к пункту отгрузки',
-            'in_way': 'В пути к пункту доставки'
+            'in_way': 'В пути к пункту доставки',
+            'close': 'Успешно закрыт'
         }
-        self_string = (f'🚩 <b>Пункт отгрузки:</b> {self._point_of_departure}\n'
+        self_string = (f'<b><i>Заказ №{self._order_num}</i></b>\n\n'
+                       f'🚩 <b>Пункт отгрузки:</b> {self._point_of_departure}\n'
                        f'🏁 <b>Пункт доставки:</b> {self._point_of_delivery}\n'
                        f'📦 <b>Описание груза:</b> {self._parcel_contents}\n'
                        f'⌚ <b>Время доставки:</b> {self._time_delivery}\n'
@@ -95,7 +103,8 @@ class OrderContainer:
     def get_info_for_orders_board(self):
         """Возвращает строку с информацией по заказу для потенциальных исполнителей,
         без информации о статусе и контактах"""
-        self_string = (f'🚩 <b>Пункт отгрузки:</b> {self._point_of_departure}\n'
+        self_string = (f'<b><i>Заказ №{self._order_num}</i></b>\n\n'
+                       f'🚩 <b>Пункт отгрузки:</b> {self._point_of_departure}\n'
                        f'🏁 <b>Пункт доставки:</b> {self._point_of_delivery}\n'
                        f'📦 <b>Описание груза:</b> {self._parcel_contents}\n'
                        f'⌚ <b>Время доставки:</b> {self._time_delivery}\n'
@@ -118,3 +127,58 @@ class OrderContainer:
     def get_order_status(self):
         """Возвращает статус заказа"""
         return self._status
+
+    def edit_order_departure(self, new_departure):
+        """Изменяем пункт отгрузки"""
+        self._point_of_departure = new_departure
+        bot_base.edit_order_info(
+            order_id=self._container_id,
+            edit_column='point_of_departure',
+            variable=new_departure
+        )
+
+    def edit_order_delivery(self, new_delivery):
+        """Изменить пункт доставки"""
+        self._point_of_delivery = new_delivery
+        bot_base.edit_order_info(
+            order_id=self._container_id,
+            edit_column='point_of_delivery',
+            variable=new_delivery
+        )
+
+    def edit_order_cargo_(self, new_cargo):
+        """Изменить описание груза"""
+        self._parcel_contents = new_cargo
+        bot_base.edit_order_info(
+            order_id=self._container_id,
+            edit_column='parcel_contents',
+            variable=new_cargo
+        )
+
+    def edit_order_time(self, new_time):
+        """Изменить время доставки"""
+        self._time_delivery = new_time
+        bot_base.edit_order_info(
+            order_id=self._container_id,
+            edit_column='time_delivery',
+            variable=new_time
+        )
+
+    def edit_order_price(self, new_price):
+        """Изменить вознаграждение"""
+        self._price = new_price
+        bot_base.edit_order_info(
+            order_id=self._container_id,
+            edit_column='price',
+            variable=new_price
+        )
+
+    def edit_order_contacts(self, new_contacts):
+        """Изменить контакты"""
+        self._contacts = new_contacts
+        bot_base.edit_order_info(
+            order_id=self._container_id,
+            edit_column='contacts',
+            variable=new_contacts
+        )
+
