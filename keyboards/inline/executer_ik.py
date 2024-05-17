@@ -29,3 +29,8 @@ confirm_a_cancel_taken_order = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='✅ Да', callback_data='cancel_yes'),
      InlineKeyboardButton(text='⛔ Нет', callback_data='cancel_no')]
 ])
+
+confirm_cargo_photo = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='✔️ Груз получен', callback_data='add_photo_yes')],
+    [InlineKeyboardButton(text='❌ Отмена', callback_data='add_photo_no')]
+])
