@@ -1,6 +1,6 @@
 from .inline.registration_and_customer import (role_choice, confirm_choice, confirm_delivery_yes_no,
                                                remove_order, confirm_order_remove, confirm_firm, get_photo_history,
-                                               confirm_delivery, fith_or_representative, make_order)
+                                               confirm_delivery, fith_or_representative, make_order, need_photo_keyboard)
 from .inline.executer_ik import take_order, confirm_order_taking, taken_order, confirm_a_cancel_taken_order, confirm_cargo_photo
 from .inline.admin_ik import editor_on, editor_panel
 from .reply.customer_rk import main_customer
@@ -26,6 +26,7 @@ __all__ = (
     'confirm_delivery',
     'confirm_delivery_yes_no',
     'get_photo_history',
+    'need_photo_keyboard',
 
     # Исполнители
     'main_executor',

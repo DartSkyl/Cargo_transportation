@@ -1,5 +1,5 @@
 from keyboards import (main_customer, cancel_button, make_order, get_photo_history, history_choice,
-                       remove_order, confirm_order_remove, confirm_delivery_yes_no)
+                       remove_order, confirm_order_remove, confirm_delivery_yes_no, need_photo_keyboard)
 from utils.routers_for_roles import customer_router, all_role_router
 from utils.order_board import board_with_order
 from utils.order_container import OrderContainer
@@ -71,8 +71,18 @@ async def catch_time_to_delivery(msg: Message, state: FSMContext):
 async def catch_price(msg: Message, state: FSMContext):
     """Ловим цену за доставку и предлагаем ввести контакты"""
     await state.update_data({'price': msg.text})
-    await msg.answer('Укажите свой действующий номер телефона и/или другой контакт, '
-                     'по которому исполнитель сможет с вами связаться')
+    await msg.answer(text='Вам нужен фотоотчет при отгрузке?', reply_markup=need_photo_keyboard)
+    await state.set_state(OrderCreating.need_photo)
+
+
+@all_role_router.callback_query(OrderCreating.need_photo)
+@customer_router.callback_query(OrderCreating.need_photo)
+async def catch_need_photo(callback: CallbackQuery, state: FSMContext):
+    """Ловим установку на фотоотчет"""
+    await callback.answer()
+    await state.update_data({'need_photo': True if callback.data == 'need_photo_yes' else False})
+    await callback.message.answer('Укажите свой действующий номер телефона и/или другой контакт, '
+                                  'по которому исполнитель сможет с вами связаться')
     await state.set_state(OrderCreating.contacts)
 
 
@@ -90,7 +100,8 @@ async def catch_contacts_and_show_result(msg: Message, state: FSMContext):
                 f'<b>Описание груза:</b> {order_info["parcel_contents"]}\n'
                 f'<b>Время доставки:</b> {order_info["time_to_delivery"]}\n'
                 f'<b>Вознаграждение за доставку:</b> {order_info["price"]}\n'
-                f'<b>Контакты для связи:</b> {order_info["contacts"]}')
+                f'<b>Контакты для связи:</b> {order_info["contacts"]}\n'
+                f'<b>Фотоотчет:</b> {"Нужен" if order_info["need_photo"] else "Не нужен"}')
 
     await msg.answer(text=msg_text, reply_markup=make_order)
     await state.set_state(OrderCreating.finish)
@@ -110,7 +121,8 @@ async def finish_order_creating(callback: CallbackQuery, state: FSMContext):
             parcel_contents=order_info["parcel_contents"],
             time_delivery=order_info["time_to_delivery"],
             price=order_info["price"],
-            contacts=order_info["contacts"]
+            contacts=order_info["contacts"],
+            need_photo=order_info["need_photo"]
         )
         await callback.message.answer('Заказ опубликован!')
 
@@ -227,10 +239,12 @@ async def view_orders_history(msg: Message, state: FSMContext):
                 price=elem[8],
                 contacts=elem[9],
                 status=elem[10],
-                cargo_photo=elem[11]
+                cargo_photo=elem[11],
+                need_photo=True if elem[11] != 'no_photo' else False
             )
             await state.update_data({elem[1]: (elem[11], elem[6])})
-            await msg.answer(text=close_order.get_info_for_owner_and_executor(), reply_markup=get_photo_history(elem[1]))
+            await msg.answer(text=close_order.get_info_for_owner_and_executor(),
+                             reply_markup=get_photo_history(elem[1]) if elem[11] != 'no_photo' else None)
     else:
         await msg.answer('Ваша история пуста!')
     if msg.from_user.id in roles_dict['all_roles']:

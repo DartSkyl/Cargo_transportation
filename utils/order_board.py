@@ -18,7 +18,8 @@ class OrderBoard:
                         parcel_contents: str,
                         time_delivery: str,
                         price: str,
-                        contacts: str):
+                        contacts: str,
+                        need_photo: bool):
         """Добавляем заказ на общую доску и сохраняем в базу"""
 
         order_id = ''.join(choices(string.digits + string.ascii_letters, k=8))
@@ -36,7 +37,8 @@ class OrderBoard:
             parcel_contents=parcel_contents,
             time_delivery=time_delivery,
             price=price,
-            contacts=contacts
+            contacts=contacts,
+            need_photo=need_photo
         )
 
         # И сразу пишем в базу
@@ -80,7 +82,8 @@ class OrderBoard:
                     price=elem[8],
                     contacts=elem[9],
                     status=elem[10] if elem[10] != 'None' else None,
-                    cargo_photo=elem[11] if elem[11] != 'None' else None
+                    cargo_photo=elem[11] if elem[11] != 'None' else None,
+                    need_photo=False
                 )
                 self._order_list.append(order)
 
@@ -149,11 +152,15 @@ class OrderBoard:
                 order.set_status(status='in_way')
                 order.set_cargo_photo(cargo_photo=cargo_photo)
                 await bot_base.executor_taken_cargo(order_id=order_id, cargo_phot=cargo_photo)
-                await bot.send_photo(
-                    chat_id=order.get_customer_id(),
-                    photo=cargo_photo,
-                    caption=f'Исполнитель принял груз <b>{order.get_parcel_contents()}</b>\n'
-                )
+                if cargo_photo != 'no_photo':
+                    await bot.send_photo(
+                        chat_id=order.get_customer_id(),
+                        photo=cargo_photo,
+                        caption=f'Исполнитель принял груз <b>{order.get_parcel_contents()}</b>\n'
+                    )
+                else:
+                    await bot.send_message(chat_id=order.get_customer_id(),
+                                           text=f'Исполнитель принял груз <b>{order.get_parcel_contents()}</b>')
                 break
 
     async def get_cargo_photo(self, order_id):
@@ -171,12 +178,19 @@ class OrderBoard:
         """Сообщаем заказчику, что груз доставлен и ждем от него подтверждения"""
         for order in self._order_list:
             if order.get_order_id() == order_id:
-                await bot.send_photo(
-                    chat_id=order.get_customer_id(),
-                    caption=f'Исполнитель доставил груз <b>{order.get_parcel_contents()}</b>\nПодтвердите получение:',
-                    photo=order.get_cargo_phot(),
-                    reply_markup=confirm_delivery(order_id)
-                )
+                if order.get_need_photo():
+                    await bot.send_photo(
+                        chat_id=order.get_customer_id(),
+                        caption=f'Исполнитель доставил груз <b>{order.get_parcel_contents()}</b>\nПодтвердите получение:',
+                        photo=order.get_cargo_phot(),
+                        reply_markup=confirm_delivery(order_id)
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=order.get_customer_id(),
+                        text=f'Исполнитель доставил груз <b>{order.get_parcel_contents()}</b>\nПодтвердите получение:',
+                        reply_markup=confirm_delivery(order_id)
+                    )
 
     async def close_order_successfully(self, order_id):
         """Здесь происходит закрытие заказа, после того как заказчик подтвердил получение груза.

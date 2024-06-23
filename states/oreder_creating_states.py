@@ -9,4 +9,5 @@ class OrderCreating(StatesGroup):
     time_to_delivery = State()
     price = State()
     contacts = State()
+    need_photo = State()
     finish = State()

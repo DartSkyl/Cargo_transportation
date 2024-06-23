@@ -37,6 +37,11 @@ fith_or_representative = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👨‍✈️ Представитель фирмы', callback_data='pom_repr')]
 ])
 
+need_photo_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='✅ Да', callback_data='need_photo_yes')],
+    [InlineKeyboardButton(text='⛔ Нет', callback_data='need_photo_no')]
+])
+
 
 def remove_order(order_id, status):
     if not status:

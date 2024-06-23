@@ -43,9 +43,14 @@ async def take_the_order(callback: CallbackQuery, state: FSMContext):
             await callback.message.delete()
             order = await board_with_order.get_order_by_id(order_id)
             order_status = order.get_order_status()  # Отменить заказ можно, если груз еще не получен
+            order_need_photo = order.get_need_photo()  # Так же смотрим, нужен фотоотчет или нет
             await callback.message.answer(text=order.get_info_for_owner_and_executor(),
                                           # В зависимости от статуса заказа, клавиатура будет разной
-                                          reply_markup=taken_order(order_id=order.get_order_id(), status=order_status))
+                                          reply_markup=taken_order(
+                                              order_id=order.get_order_id(),
+                                              status=order_status,
+                                              need_ph=order_need_photo
+                                          ))
         except ValueError:
             await callback.message.delete()
             await callback.message.answer('К сожалению, данный заказ уже взят другим исполнителем!')
@@ -82,11 +87,12 @@ async def show_executors_history(msg: Message, state: FSMContext):
                 price=elem[8],
                 contacts=elem[9],
                 status=elem[10],
-                cargo_photo=elem[11]
+                cargo_photo=elem[11],
+                need_photo=True if elem[11] != 'no_photo' else False
             )
             await state.update_data({elem[1]: (elem[11], elem[6])})
             await msg.answer(text=close_order.get_info_for_owner_and_executor(),
-                             reply_markup=get_photo_history(elem[1]))
+                             reply_markup=get_photo_history(elem[1]) if elem[11] != 'no_photo' else None)
     else:
         await msg.answer('Ваша история пуста!')
 
@@ -102,19 +108,40 @@ async def view_a_orders_in_execute(msg: Message):
     if len(taken_orders) > 0:
         for order in taken_orders:
             order_status = order.get_order_status()  # Отменить заказ можно, если груз еще не получен
+            order_need_photo = order.get_need_photo()  # Так же смотрим, нужен фотоотчет или нет
             await msg.answer(text=order.get_info_for_owner_and_executor(),
                              # В зависимости от статуса заказа, клавиатура будет разной
-                             reply_markup=taken_order(order_id=order.get_order_id(), status=order_status))
+                             reply_markup=taken_order(order_id=order.get_order_id(), status=order_status, need_ph=order_need_photo))
     else:
         await msg.answer('У вас нет активных заказов на доставку!')
 
 
-@all_role_router.callback_query(F.data.startswith('cargo_taken_'))
-@executor_router.callback_query(F.data.startswith('cargo_taken_'))
-async def executor_taken_cargo(callback: CallbackQuery, state: FSMContext):
+@all_role_router.callback_query(F.data.startswith('cargo_taken_no_ph_'))
+@executor_router.callback_query(F.data.startswith('cargo_taken_no_ph_'))
+async def executor_taken_cargo_no_photo(callback: CallbackQuery, state: FSMContext):
+    """Исполнитель сообщает, что приехал в пункт отгрузки"""
+    order_id = callback.data.replace('cargo_taken_no_ph_', '')
+    await callback.answer()
+    await board_with_order.executor_taken_cargo(
+        cargo_photo='no_photo',
+        order_id=order_id
+    )
+    await callback.message.answer('Заказчик получил уведомление о том, что вы получили груз')
+    order = await board_with_order.get_order_by_id(order_id)
+    order_status = order.get_order_status()  # Отменить заказ можно, если груз еще не получен
+    await callback.message.answer(text=order.get_info_for_owner_and_executor(),
+                                  # В зависимости от статуса заказа, клавиатура будет разной
+                                  reply_markup=taken_order(order_id=order.get_order_id(), status=order_status,
+                                                           need_ph=False))
+    await state.clear()
+
+
+@all_role_router.callback_query(F.data.startswith('cargo_taken_with_ph_'))
+@executor_router.callback_query(F.data.startswith('cargo_taken_with_ph_'))
+async def executor_taken_cargo_with_photo(callback: CallbackQuery, state: FSMContext):
     """Исполнитель сообщает, что приехал в пункт отгрузки.
     После чего он должен скинуть фото груза, который ему передали"""
-    await state.set_data({'taken_order_id': callback.data.replace('cargo_taken_', '')})
+    await state.set_data({'taken_order_id': callback.data.replace('cargo_taken_with_ph_', '')})
     await callback.message.delete()
     await callback.message.answer('Скиньте фото, на котором видно весь груз!')
     await state.set_state(TakenOrder.add_photo)
@@ -131,8 +158,8 @@ async def catch_executor_photo(msg: Message, state: FSMContext):
                          reply_markup=confirm_cargo_photo)
 
 
-@all_role_router.callback_query(TakenOrder.add_photo, F.data.startswith('add_photo_yes'))
-@executor_router.callback_query(TakenOrder.add_photo, F.data.startswith('add_photo_yes'))
+@all_role_router.callback_query(TakenOrder.add_photo, F.data.startswith('add_photo_'))
+@executor_router.callback_query(TakenOrder.add_photo, F.data.startswith('add_photo_'))
 async def confirm_executor_photo(callback: CallbackQuery, state: FSMContext):
     """Ждем подтверждения, что груз получен"""
     await callback.answer()
@@ -147,9 +174,11 @@ async def confirm_executor_photo(callback: CallbackQuery, state: FSMContext):
         order_status = order.get_order_status()  # Отменить заказ можно, если груз еще не получен
         await callback.message.answer(text=order.get_info_for_owner_and_executor(),
                                       # В зависимости от статуса заказа, клавиатура будет разной
-                                      reply_markup=taken_order(order_id=order.get_order_id(), status=order_status))
+                                      reply_markup=taken_order(order_id=order.get_order_id(), status=order_status, need_ph=False))
         await state.clear()
     elif callback.data == 'add_photo_no':
+        await callback.message.delete()
+        await callback.message.answer('Отправка фото отменена!')
 
         # В зависимости от роли, направим юзера в соответствующее главное меню
         if callback.from_user.id in roles_dict['executor']:
@@ -178,7 +207,8 @@ async def cancel_taken_order(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(text=order.get_info_for_owner_and_executor(),
                                          reply_markup=taken_order(
                                              order_id=cancel_order_id,
-                                             status=order.get_order_status()
+                                             status=order.get_order_status(),
+                                             need_ph=order.get_need_photo()
                                          ))
 
     else:

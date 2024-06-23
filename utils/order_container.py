@@ -13,6 +13,7 @@ class OrderContainer:
                  time_delivery: str,
                  price: str,
                  contacts: str,
+                 need_photo: bool,
                  status=None,
                  executor_id=0,
                  cargo_photo=None):
@@ -27,6 +28,7 @@ class OrderContainer:
         self._time_delivery = time_delivery
         self._price = price
         self._contacts = contacts
+        self._need_photo = need_photo
         self._status = status
         self._cargo_photo = cargo_photo
 
@@ -96,7 +98,8 @@ class OrderContainer:
                        f'⌚ <b>Время доставки:</b> {self._time_delivery}\n'
                        f'💵 <b>Вознаграждение:</b> {self._price}\n'
                        f'📞 <b>Контакты:</b> {self._contacts}\n'
-                       f'📨 <b>Статус:</b> {status_dict[self._status]}')
+                       f'📨 <b>Статус:</b> {status_dict[self._status]}\n'
+                       f'📸 <b>Фотоотчет:</b> {"Нужен" if self._need_photo else "Не нужен"}')
 
         return self_string
 
@@ -127,6 +130,10 @@ class OrderContainer:
     def get_order_status(self):
         """Возвращает статус заказа"""
         return self._status
+
+    def get_need_photo(self):
+        """Возвращает значение нужно фотоотчет или нет"""
+        return self._need_photo
 
     def edit_order_departure(self, new_departure):
         """Изменяем пункт отгрузки"""
